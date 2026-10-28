@@ -7,7 +7,8 @@ a simple alternative to expensive clinic management software.
 ## Features
 
 - **Patient roster** with an intake form (name, contact info, insurance, condition, assigned therapist)
-- **Weekly scheduler** — create, move, and cancel appointments from a calendar grid
+- **Weekly scheduler** — create, move, and cancel appointments from a calendar grid; the
+  database rejects double-booking a therapist (an exclusion constraint on overlapping times)
 - **Staff dashboard** — today's patient load and a per-therapist task checklist
 - **Analytics** (admin only) — patient conversion rate, appointment completion rate, average
   sessions per patient, a 14-day appointment volume chart, and per-therapist load

@@ -1,9 +1,13 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, assertPatientAccess } from '../middleware/auth.js';
 
 const router = Router();
 router.use(requireAuth);
+
+// SQLSTATE raised by the appointments_no_double_booking exclusion constraint (schema.sql).
+const EXCLUSION_VIOLATION = '23P01';
+const DOUBLE_BOOKED = 'That therapist already has an appointment overlapping this time';
 
 function scopeToTherapist(req) {
   return req.user.role === 'therapist' ? req.user.id : null;
@@ -37,14 +41,20 @@ router.post('/', async (req, res) => {
   if (new Date(end_time) <= new Date(start_time)) {
     return res.status(400).json({ error: 'end_time must be after start_time' });
   }
+  await assertPatientAccess(req.user, patient_id);
 
-  const { rows } = await pool.query(
-    `INSERT INTO appointments (patient_id, therapist_id, start_time, end_time, notes)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [patient_id, therapist_id, start_time, end_time, notes || null]
-  );
-  res.status(201).json({ appointment: rows[0] });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO appointments (patient_id, therapist_id, start_time, end_time, notes)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [patient_id, therapist_id, start_time, end_time, notes || null]
+    );
+    res.status(201).json({ appointment: rows[0] });
+  } catch (err) {
+    if (err.code === EXCLUSION_VIOLATION) return res.status(409).json({ error: DOUBLE_BOOKED });
+    throw err;
+  }
 });
 
 router.put('/:id', async (req, res) => {
@@ -66,14 +76,19 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ error: 'end_time must be after start_time' });
   }
 
-  const { rows } = await pool.query(
-    `UPDATE appointments
-     SET start_time = $1, end_time = $2, status = $3, notes = $4
-     WHERE id = $5
-     RETURNING *`,
-    [start_time, end_time, status, notes, req.params.id]
-  );
-  res.json({ appointment: rows[0] });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE appointments
+       SET start_time = $1, end_time = $2, status = $3, notes = $4
+       WHERE id = $5
+       RETURNING *`,
+      [start_time, end_time, status, notes, req.params.id]
+    );
+    res.json({ appointment: rows[0] });
+  } catch (err) {
+    if (err.code === EXCLUSION_VIOLATION) return res.status(409).json({ error: DOUBLE_BOOKED });
+    throw err;
+  }
 });
 
 router.delete('/:id', async (req, res) => {

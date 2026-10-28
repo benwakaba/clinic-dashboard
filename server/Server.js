@@ -34,6 +34,10 @@ app.use((req, res) => {
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
+  // Errors that carry a status (assertPatientAccess, malformed JSON bodies) are client errors.
+  if (err.status && err.status < 500) {
+    return res.status(err.status).json({ error: err.message });
+  }
   console.error(err);
   res.status(500).json({ error: 'Internal server error' });
 });

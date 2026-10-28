@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, assertPatientAccess } from '../middleware/auth.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -29,6 +29,7 @@ router.post('/', async (req, res) => {
   if (!description || !therapist_id) {
     return res.status(400).json({ error: 'description and therapist_id are required' });
   }
+  if (patient_id) await assertPatientAccess(req.user, patient_id);
 
   const { rows } = await pool.query(
     `INSERT INTO tasks (therapist_id, patient_id, description, due_date)
